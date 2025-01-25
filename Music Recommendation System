@@ -1,0 +1,51 @@
+# Import required libraries
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Simulated user-song interaction dataset
+data_dict = {
+    "user_id": [1, 1, 1, 2, 2, 2, 3, 3, 4, 4],
+    "song_id": [101, 102, 103, 101, 103, 104, 102, 104, 101, 105],
+    "rating": [5, 4, 3, 4, 5, 2, 3, 5, 4, 3],
+}
+df = pd.DataFrame(data_dict)
+
+# Create a User-Item Matrix
+user_item_matrix = df.pivot_table(index="user_id", columns="song_id", values="rating").fillna(0)
+
+# Compute Cosine Similarity between users
+user_similarity = cosine_similarity(user_item_matrix)
+
+# Create a DataFrame for user similarity
+user_similarity_df = pd.DataFrame(user_similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
+
+# Function to recommend songs for a specific user
+def recommend_songs(user_id, user_item_matrix, user_similarity_df, top_n=3):
+    # Check if user_id exists
+    if user_id not in user_item_matrix.index:
+        return f"User ID {user_id} not found."
+
+    # Get similar users
+    similar_users = user_similarity_df[user_id].sort_values(ascending=False).index[1:top_n + 1]  # Get top N similar users
+    
+    # Get songs rated by similar users but not by the target user
+    user_ratings = user_item_matrix.loc[user_id]
+    user_unrated_songs = user_ratings[user_ratings == 0].index  # Songs the user hasn't rated
+
+    # Aggregate ratings from similar users
+    song_scores = {}
+    for song_id in user_unrated_songs:
+        score = 0
+        for similar_user in similar_users:
+            score += user_item_matrix.loc[similar_user, song_id] * user_similarity_df.loc[similar_user, user_id]
+        song_scores[song_id] = score
+    
+    # Sort and return top recommendations
+    sorted_recommendations = sorted(song_scores.items(), key=lambda x: x[1], reverse=True)
+    return sorted_recommendations[:top_n]
+
+# Generate recommendations for user_id = 1
+recommendations = recommend_songs(1, user_item_matrix, user_similarity_df)
+
+# Display recommendations
+print(f"Recommendations for User 1: {recommendations}")
